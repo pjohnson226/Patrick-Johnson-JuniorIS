@@ -284,7 +284,45 @@ best_run = trainer.hyperparameter_search(
 
 # Train model
 model = trainer.model
-
-#^This code defines the training and evaluation processes. 
+#^This code defines the training and evaluation processes using trials. 
 #The Trainer and TrainingArguments tools from HuggingFace are used to train and evaluate the model using Optuna hyperparameter optimization. 
 #Best run contains the best hyperparameter configuration.
+
+
+# training arguments
+training_args = TrainingArguments(
+    evaluation_strategy='epoch',  # Evaluate at the end of each epoch
+    output_dir = "/content/gdrive/MyDrive/HUPD",
+    save_strategy='epoch',
+    #load_best_model_at_end=True,
+    learning_rate=2e-5,
+    num_train_epochs=3,
+    weight_decay=0.05,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=16,
+    torch_compile=True
+)
+# Instantiating Trainer
+trainer = Trainer(
+    args=training_args,                  # Training arguments, defined above
+    train_dataset=train_set_balanced,    # Training dataset
+    eval_dataset=test_set_balanced,      # Evaluation dataset
+    tokenizer=tokenizer,
+    compute_metrics=compute_accuracy,
+    #model_init=model_init
+    model=model
+)
+# Train model
+model = trainer.train()
+#^This code contains a manual configuration of parameters (no trials or use of optuna)
+
+# Load the model from the checkpoint
+model = AutoModelForSequenceClassification.from_pretrained("/content/gdrive/MyDrive/HUPD/checkpoint-95") # Get model from cached checkpoint
+text = "The present invention relates to the field of fishing rods and, more specifically, to a fishing rod design addressing line tangling and twist prevention, along with other related features to enhance the overall fishing experience. Fishing enthusiasts often encounter difficulties when their fishing lines become tangled or twisted, resulting in decreased performance and frustration during fishing activities. These problems can lead to reduced casting distance, decreased accuracy, and an overall diminished enjoyment of the sport. Existing fishing rod designs have not adequately addressed these issues, leaving room for improvement. Prior art fishing rods typically feature a basic rod and reel setup, with limited mechanisms to prevent line tangling and twisting. Some rods may include features such as line guides or swivels, but these often prove insufficient in preventing line management problems, especially during more complex casting techniques or in windy conditions. Additionally, many fishing rods lack convenient features that could further improve the overall fishing experience, such as integrated hook holders, gimbal attachments for fighting belts, and removable line clips for transportation and storage. These shortcomings in existing fishing rod designs present an opportunity for innovation to enhance the functionality and usability of fishing equipment. The fishing rod of the present invention addresses these limitations by incorporating a unique set of features aimed at reducing line tangling and twist, while also providing additional conveniences to elevate the fishing experience. By addressing these common pain points faced by anglers, the invention seeks to offer a more efficient and enjoyable solution for recreational and competitive fishing activities."
+encoded_text = tokenizer(text, truncation=True, padding='max_length', return_tensors='pt') #tokenize text
+with torch.no_grad():  # Deactivate gradient calculation for prediction (no need to calc gradients on single prediction of pretrained model)
+    outputs = model(**encoded_text)
+    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)  # Get class probabilities
+    predicted_class = torch.argmax(predictions, dim=-1)  # Get the predicted class index
+print(f"Predicted class: {predicted_class}")
+#^This code predicts whether a patent will be accepted or rejected based on a single example of a background section
